@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#090b10" />
+  <link rel="manifest"
+    href='data:application/manifest+json,{"name":"GraalVM Milestone","short_name":"Milestone","display":"fullscreen","background_color":"#090b10","theme_color":"#090b10"}' />
+  <title>GraalVM Milestone</title>
+  <style>
+    :root {
+      --bg-dark: #090b10;
+      --panel-bg: rgba(15, 19, 28, 0.78);
+      --panel-border: rgba(255, 255, 255, 0.12);
+      --accent: #5ce1e6;
+      --gold: #e5b84b;
+      --text-main: #eef2f7;
+      --text-muted: #9aa5b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 35%, #1c2230 0%, #090b10 78%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      color: var(--text-main);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      touch-action: none;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    /* Title header */
+    .header-overlay {
+      position: fixed;
+      top: 20px;
+      left: 24px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .header-overlay h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--text-main);
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+    }
+
+    .header-overlay p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Loading screen */
+    #loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(9, 11, 16, 0.92);
+      backdrop-filter: blur(10px);
+      z-index: 100;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+
+    #loader.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .loader-card {
+      width: min(380px, 88vw);
+      padding: 28px 24px;
+      border-radius: 16px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+      text-align: center;
+    }
+
+    .loader-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .loader-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 18px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #5ce1e6);
+      border-radius: 999px;
+      transition: width 0.15s ease-out;
+    }
+
+    .progress-stats {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Controls panel */
+    .controls-panel {
+      position: fixed;
+      top: 66px;
+      right: 20px;
+      width: 300px;
+      max-height: calc(100vh - 86px);
+      overflow-y: auto;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 4px 16px 16px;
+      z-index: 20;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+      font-size: 0.8rem;
+    }
+
+    .controls-panel.collapsed {
+      display: none;
+    }
+
+    .toggle-btn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 30;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      color: var(--text-main);
+      border-radius: 10px;
+      padding: 0;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    .toggle-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .control-section-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin: 12px 0 8px;
+      font-weight: 600;
+    }
+
+    .preset-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .award-select-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .preset-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--panel-border);
+      color: var(--text-main);
+      padding: 6px 8px;
+      border-radius: 7px;
+      font-size: 0.74rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .preset-btn:hover,
+    .preset-btn.active {
+      background: rgba(92, 225, 230, 0.18);
+      border-color: var(--accent);
+    }
+
+    .control-group {
+      margin-bottom: 10px;
+    }
+
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      color: var(--text-muted);
+    }
+
+    .control-value {
+      color: var(--text-main);
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    input[type="color"] {
+      width: 100%;
+      height: 28px;
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 8px 0;
+      color: var(--text-muted);
+    }
+
+    .footer-hint {
+      position: fixed;
+      bottom: 22px;
+      left: 24px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .fullscreen-btn {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      position: fixed;
+      top: 20px;
+      right: 66px;
+      width: 38px;
+      height: 38px;
+      z-index: 30;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      color: var(--text-main);
+      border-radius: 10px;
+      padding: 0;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    .fullscreen-btn.supported {
+      display: inline-flex;
+    }
+
+    .fullscreen-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .fullscreen-btn:active {
+      background: rgba(92, 225, 230, 0.2);
+      border-color: var(--accent);
+    }
+
+    body.immersive-fullscreen .header-overlay,
+    body.immersive-fullscreen .controls-panel,
+    body.immersive-fullscreen .footer-hint {
+      display: none !important;
+    }
+
+    @media (max-width: 900px),
+    (pointer: coarse) {
+      .toggle-btn {
+        top: 14px;
+        right: 14px;
+      }
+
+      .fullscreen-btn.supported {
+        top: 14px;
+        right: 60px;
+      }
+
+      .header-overlay {
+        top: 14px;
+        left: 16px;
+        max-width: calc(100vw - 80px);
+      }
+
+      body:has(.fullscreen-btn.supported) .header-overlay {
+        max-width: calc(100vw - 120px);
+      }
+
+      .header-overlay h1 {
+        font-size: 1.05rem;
+      }
+
+      .header-overlay p {
+        font-size: 0.72rem;
+      }
+
+      .controls-panel {
+        top: 60px;
+        right: 14px;
+        width: min(280px, calc(100vw - 28px));
+        max-height: calc(100vh - 80px);
+        padding: 4px 14px 14px;
+      }
+
+      .footer-hint {
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.72rem;
+        white-space: nowrap;
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
+      }
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <div class="header-overlay">
+    <h1>Thanks to our Graal colleagues for the generous gift and the journey we've had together (so far...)</h1>
+    <p>Resin sculptures on engraved LED Bases &bull; Tap either gold button</p>
+  </div>
+
+  <div id="loader">
+    <div class="loader-card">
+      <div class="loader-title" id="loader-title">Loading 3D Model&hellip;</div>
+      <div class="loader-subtitle">Casting solid refractive resin blocks &amp; wooden LED bases</div>
+      <div class="progress-track">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <div class="progress-stats" id="progress-stats">Initializing&hellip;</div>
+    </div>
+  </div>
+
+  <button class="fullscreen-btn" id="fullscreen-btn" type="button" aria-label="Toggle Fullscreen"
+    title="Toggle Fullscreen">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+      stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+    </svg>
+  </button>
+
+  <button class="toggle-btn" id="collapse-btn" type="button" aria-label="Toggle Controls" title="Toggle Controls">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+      stroke-linecap="round">
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  </button>
+
+  <aside class="controls-panel collapsed" id="controls-panel">
+    <div class="controls-body" id="controls-body">
+      <div class="control-section-title">Awards Displayed</div>
+      <div class="award-select-row">
+        <button class="preset-btn award-vis-btn active" data-vis="both">Both</button>
+        <button class="preset-btn award-vis-btn" data-vis="0">Doug Only</button>
+        <button class="preset-btn award-vis-btn" data-vis="1">Thomas Only</button>
+      </div>
+
+      <div class="control-section-title">Resin Tint Presets</div>
+      <div class="preset-row">
+        <button class="preset-btn active" data-preset="clear">Crystal Clear</button>
+        <button class="preset-btn" data-preset="cyan">Cyber Cyan</button>
+        <button class="preset-btn" data-preset="amber">Amber Relic</button>
+        <button class="preset-btn" data-preset="emerald">Bio-Emerald</button>
+      </div>
+
+      <div class="control-section-title">MeshPhysicalMaterial</div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Transmission</span>
+          <span class="control-value" id="val-transmission">1.00</span>
+        </div>
+        <input type="range" id="ctrl-transmission" min="0" max="1" step="0.01" value="1.0" />
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Index of Refraction (IOR)</span>
+          <span class="control-value" id="val-ior">1.52</span>
+        </div>
+        <input type="range" id="ctrl-ior" min="1.0" max="2.33" step="0.01" value="1.52" />
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Refraction Thickness</span>
+          <span class="control-value" id="val-thickness">1.60</span>
+        </div>
+        <input type="range" id="ctrl-thickness" min="0.1" max="5.0" step="0.05" value="1.60" />
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Surface Roughness (Frost)</span>
+          <span class="control-value" id="val-roughness">0.03</span>
+        </div>
+        <input type="range" id="ctrl-roughness" min="0.0" max="0.6" step="0.01" value="0.03" />
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Clearcoat Polish</span>
+          <span class="control-value" id="val-clearcoat">1.00</span>
+        </div>
+        <input type="range" id="ctrl-clearcoat" min="0.0" max="1.0" step="0.01" value="1.0" />
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Attenuation Distance</span>
+          <span class="control-value" id="val-attenuation-dist">3.20</span>
+        </div>
+        <input type="range" id="ctrl-attenuation-dist" min="0.2" max="6.0" step="0.1" value="3.20" />
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Attenuation Color (Tint)</span>
+        </div>
+        <input type="color" id="ctrl-attenuation-color" value="#f2f8ff" />
+      </div>
+
+      <div class="control-section-title">Resin Block Geometry</div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Block Margin</span>
+          <span class="control-value" id="val-margin">4%</span>
+        </div>
+        <input type="range" id="ctrl-margin" min="4" max="40" step="1" value="4" />
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Bevel Radius</span>
+          <span class="control-value" id="val-bevel">0.01</span>
+        </div>
+        <input type="range" id="ctrl-bevel" min="0.01" max="0.25" step="0.01" value="0.01" />
+      </div>
+
+      <div class="checkbox-row">
+        <label for="ctrl-autorotate">Auto-Rotate</label>
+        <input type="checkbox" id="ctrl-autorotate" />
+      </div>
+    </div>
+  </aside>
+
+  <div class="footer-hint" id="footer-hint">Drag to orbit &bull; Command-drag to pan &bull; Scroll to zoom</div>
+
+  <div id="canvas-container"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+    import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+    const MODEL_PARTS = [
+      './Meshy_AI_Cybernetic_Reverie_1027093131_texture.glb.part1',
+      './Meshy_AI_Cybernetic_Reverie_1027093131_texture.glb.part2',
+    ];
+    // Full uncompressed byte size of the original GLB across both parts (60.20 MB)
+    const EXPECTED_MODEL_BYTES = 63127876;
+
+    const AWARDS_CONFIG = [
+      {
+        author: 'Doug Simon',
+        loc: '+990,677 LOC',
+        xOffset: -1.32,
+      },
+      {
+        author: 'Thomas Wuerthinger',
+        loc: '+677,282 LOC',
+        xOffset: 1.32,
+      },
+    ];
+
+    // --- Renderer & Scene Setup ---
+    const container = document.getElementById('canvas-container');
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: 'high-performance',
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.transmissionResolutionScale = 1.0;
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+
+    // Studio environment map for PBR reflections & refraction
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environmentIntensity = 0.75;
+
+    // Camera & Controls framed on both awards side by side
+    const camera = new THREE.PerspectiveCamera(
+      38,
+      window.innerWidth / window.innerHeight,
+      0.05,
+      100
+    );
+
+    function getDefaultCameraZ() {
+      const aspect = window.innerWidth / Math.max(window.innerHeight, 1);
+      // Automatically pull back on narrower screens so both awards fit comfortably
+      return aspect < 1.35 ? Math.min(9.5, 5.4 / Math.max(aspect, 0.55)) : 5.35;
+    }
+    camera.position.set(0.0, 0.42, getDefaultCameraZ());
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.target.set(0, -0.08, 0);
+    controls.minDistance = 1.6;
+    controls.maxDistance = 14.0;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.7;
+
+    // --- Ambient / Room Studio Lighting ---
+    const keyLight = new THREE.DirectionalLight(0xfffbf2, 1.45);
+    keyLight.position.set(3.0, 5.5, 4.8);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.camera.near = 0.5;
+    keyLight.shadow.camera.far = 18;
+    const d = 3.6;
+    keyLight.shadow.camera.left = -d;
+    keyLight.shadow.camera.right = d;
+    keyLight.shadow.camera.top = d;
+    keyLight.shadow.camera.bottom = -d;
+    keyLight.shadow.bias = -0.0005;
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xdbe8ff, 0.55);
+    fillLight.position.set(-3.5, 2.2, 2.5);
+    scene.add(fillLight);
+
+    // Subtle shadow catcher beneath the wooden bases
+    const floorGeo = new THREE.PlaneGeometry(28, 28);
+    const floorMat = new THREE.ShadowMaterial({ opacity: 0.42 });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.y = -1.25;
+    floorMesh.receiveShadow = true;
+    scene.add(floorMesh);
+
+    // --- Procedural Maple Wood & Laser Engraving Texture Generator ---
+    function createWoodTextures(authorText, locText, seedOffset = 0) {
+      const w = 2048;
+      const h = 512;
+      const colorCanvas = document.createElement('canvas');
+      colorCanvas.width = w;
+      colorCanvas.height = h;
+      const bumpCanvas = document.createElement('canvas');
+      bumpCanvas.width = w;
+      bumpCanvas.height = h;
+
+      const ctx = colorCanvas.getContext('2d');
+      const bctx = bumpCanvas.getContext('2d');
+
+      // Base warm natural maple/beech wood gradient
+      const baseGrad = ctx.createLinearGradient(0, 0, 0, h);
+      baseGrad.addColorStop(0.0, '#d7b788');
+      baseGrad.addColorStop(0.5, '#cfb080');
+      baseGrad.addColorStop(1.0, '#c29f6d');
+      ctx.fillStyle = baseGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Neutral bump height
+      bctx.fillStyle = '#808080';
+      bctx.fillRect(0, 0, w, h);
+
+      // Flowing wood grain fibers & knots
+      for (let i = 0; i < 260; i++) {
+        const yBase = (i / 260) * h;
+        const alpha = 0.035 + ((i + seedOffset) % 7) * 0.008;
+        const dark = (i + seedOffset) % 2 === 0;
+        ctx.strokeStyle = dark
+          ? `rgba(115, 76, 38, ${alpha})`
+          : `rgba(240, 215, 175, ${alpha * 0.9})`;
+        ctx.lineWidth = 1 + (i % 4);
+
+        bctx.strokeStyle = dark
+          ? 'rgba(110, 110, 110, 0.18)'
+          : 'rgba(145, 145, 145, 0.15)';
+        bctx.lineWidth = ctx.lineWidth;
+
+        ctx.beginPath();
+        bctx.beginPath();
+        for (let x = 0; x <= w; x += 16) {
+          const wave =
+            Math.sin((x / w) * Math.PI * 4 + (i + seedOffset) * 0.12) * 18 +
+            Math.cos((x / w) * Math.PI * 10 - (i + seedOffset) * 0.05) * 6;
+          const y = yBase + wave;
+          if (x === 0) {
+            ctx.moveTo(x, y);
+            bctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+            bctx.lineTo(x, y);
+          }
+        }
+        ctx.stroke();
+        bctx.stroke();
+      }
+
+      // Subtle vertical wood pore streaks
+      for (let x = 0; x < w; x += 6) {
+        const poreAlpha = 0.02 + (Math.sin((x + seedOffset * 19) * 0.37) * 0.5 + 0.5) * 0.03;
+        ctx.fillStyle = `rgba(95, 62, 30, ${poreAlpha})`;
+        ctx.fillRect(x, 0, 2, h);
+      }
+
+      // Top & bottom subtle chamfer darkening
+      const edgeGrad = ctx.createLinearGradient(0, 0, 0, h);
+      edgeGrad.addColorStop(0.0, 'rgba(60, 38, 18, 0.28)');
+      edgeGrad.addColorStop(0.06, 'rgba(60, 38, 18, 0.0)');
+      edgeGrad.addColorStop(0.92, 'rgba(60, 38, 18, 0.0)');
+      edgeGrad.addColorStop(1.0, 'rgba(45, 28, 12, 0.38)');
+      ctx.fillStyle = edgeGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // --- Laser-Engraved Text on Front-Right of Wood Cylinder ---
+      // With cylinder rotated by Math.PI, u = 0.5 is dead-center front (+Z),
+      // and u = 0.542 is slightly to the right (+X), matching the photo.
+      const textX = w * 0.542;
+      const line1Y = h * 0.45;
+      const line2Y = h * 0.76;
+
+      // Dynamically fit font size so longer names (like "Thomas Wuerthinger") fit cleanly
+      let authorFontSize = 94;
+      ctx.font = `600 ${authorFontSize}px "Segoe UI", -apple-system, Roboto, sans-serif`;
+      const maxUnscaledWidth = 650;
+      const measuredAuthor = ctx.measureText(authorText).width;
+      if (measuredAuthor > maxUnscaledWidth) {
+        authorFontSize = Math.floor(authorFontSize * (maxUnscaledWidth / measuredAuthor));
+      }
+      const locFontSize = Math.min(90, Math.max(72, authorFontSize));
+
+      const authorFont = `600 ${authorFontSize}px "Segoe UI", -apple-system, Roboto, sans-serif`;
+      const locFont = `600 ${locFontSize}px "Segoe UI", -apple-system, Roboto, sans-serif`;
+
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.translate(textX, 0);
+      ctx.scale(0.56, 1.0);
+
+      // Scorched laser halo on color map
+      ctx.shadowColor = 'rgba(55, 28, 8, 0.55)';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = '#3b210e';
+      ctx.font = authorFont;
+      ctx.fillText(authorText, 0, line1Y);
+      ctx.font = locFont;
+      ctx.fillText(locText, 0, line2Y);
+
+      // Deep burnt inner core of laser engraving
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#281507';
+      ctx.font = authorFont;
+      ctx.fillText(authorText, 0, line1Y);
+      ctx.font = locFont;
+      ctx.fillText(locText, 0, line2Y);
+      ctx.restore();
+
+      // Engraved recess in bump map (dark = carved inward)
+      bctx.save();
+      bctx.textAlign = 'center';
+      bctx.textBaseline = 'middle';
+      bctx.translate(textX, 0);
+      bctx.scale(0.56, 1.0);
+      bctx.fillStyle = '#101010';
+      bctx.strokeStyle = '#303030';
+      bctx.lineWidth = 4;
+
+      bctx.font = authorFont;
+      bctx.strokeText(authorText, 0, line1Y);
+      bctx.fillText(authorText, 0, line1Y);
+
+      bctx.font = locFont;
+      bctx.strokeText(locText, 0, line2Y);
+      bctx.fillText(locText, 0, line2Y);
+      bctx.restore();
+
+      const colorTex = new THREE.CanvasTexture(colorCanvas);
+      colorTex.colorSpace = THREE.SRGBColorSpace;
+      colorTex.wrapS = THREE.RepeatWrapping;
+      colorTex.wrapT = THREE.ClampToEdgeWrapping;
+      colorTex.anisotropy = 8;
+
+      const bumpTex = new THREE.CanvasTexture(bumpCanvas);
+      bumpTex.wrapS = THREE.RepeatWrapping;
+      bumpTex.wrapT = THREE.ClampToEdgeWrapping;
+      bumpTex.anisotropy = 8;
+
+      return { colorTex, bumpTex };
+    }
+
+    // --- Brushed Gold Texture for the Touch Buttons ---
+    function createGoldButtonTexture() {
+      const c = document.createElement('canvas');
+      c.width = 256;
+      c.height = 256;
+      const ctx = c.getContext('2d');
+      const cx = 128;
+      const cy = 128;
+
+      const grad = ctx.createRadialGradient(cx - 24, cy - 24, 10, cx, cy, 128);
+      grad.addColorStop(0.0, '#fae28c');
+      grad.addColorStop(0.45, '#d6ab42');
+      grad.addColorStop(0.85, '#a87c22');
+      grad.addColorStop(1.0, '#785512');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 256, 256);
+
+      for (let r = 8; r < 124; r += 4) {
+        ctx.strokeStyle =
+          r % 8 === 0 ? 'rgba(255, 240, 180, 0.12)' : 'rgba(70, 45, 10, 0.12)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    const goldButtonTex = createGoldButtonTexture();
+
+    // --- Shared Solid Resin Material (MeshPhysicalMaterial) ---
+    const resinMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transmission: 1.0,
+      opacity: 1.0,
+      metalness: 0.0,
+      roughness: 0.03,
+      ior: 1.52,
+      thickness: 1.6,
+      attenuationColor: new THREE.Color('#f2f8ff'),
+      attenuationDistance: 3.2,
+      specularIntensity: 1.0,
+      specularColor: new THREE.Color(0xffffff),
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.025,
+      envMapIntensity: 1.25,
+      transparent: true,
+      side: THREE.FrontSide,
+    });
+
+    const woodCapMat = new THREE.MeshStandardMaterial({
+      color: 0xcfa978,
+      roughness: 0.68,
+      metalness: 0.02,
+    });
+
+    // --- LED Constants ---
+    const LED_INTENSITY = 0.78;
+    let visibleAwardSelection = 'both'; // 'both' | '0' | '1'
+
+    // --- Create Independent Award Assemblies ---
+    const awardUnits = AWARDS_CONFIG.map((cfg, index) => {
+      const rootGroup = new THREE.Group();
+      rootGroup.position.set(cfg.xOffset, 0, 0);
+      scene.add(rootGroup);
+
+      const supportGroup = new THREE.Group();
+      rootGroup.add(supportGroup);
+
+      const { colorTex, bumpTex } = createWoodTextures(cfg.author, cfg.loc, index * 37);
+      const woodSideMat = new THREE.MeshStandardMaterial({
+        map: colorTex,
+        bumpMap: bumpTex,
+        bumpScale: 0.012,
+        roughness: 0.62,
+        metalness: 0.02,
+      });
+
+      const ledDiffuserMat = new THREE.MeshPhysicalMaterial({
+        color: 0xf4f6f9,
+        roughness: 0.35,
+        metalness: 0.0,
+        transmission: 0.35,
+        thickness: 0.3,
+        ior: 1.49,
+        emissive: new THREE.Color(0xffa94d),
+        emissiveIntensity: 0.65,
+      });
+
+      const ledCoreMat = new THREE.MeshBasicMaterial({
+        color: 0xffb866,
+      });
+
+      const goldButtonMat = new THREE.MeshPhysicalMaterial({
+        map: goldButtonTex,
+        color: 0xe6be53,
+        metalness: 0.88,
+        roughness: 0.26,
+        clearcoat: 0.35,
+        clearcoatRoughness: 0.2,
+        emissive: new THREE.Color(0x000000),
+        emissiveIntensity: 0.0,
+      });
+
+      // Upward LED Lights for this award
+      const ledLightGroup = new THREE.Group();
+      rootGroup.add(ledLightGroup);
+
+      const warmSpot = new THREE.SpotLight(0xff9e3d, 0, 4.5, Math.PI * 0.46, 0.65, 1.3);
+      const warmPointLeft = new THREE.PointLight(0xffa64d, 0, 2.8, 1.4);
+      const warmPointRight = new THREE.PointLight(0xffa64d, 0, 2.8, 1.4);
+      const topReflectionLight = new THREE.PointLight(0xff9a36, 0, 2.5, 1.5);
+
+      const spotTarget = new THREE.Object3D();
+      spotTarget.position.set(0, 0.8, 0);
+      ledLightGroup.add(
+        spotTarget,
+        warmSpot,
+        warmPointLeft,
+        warmPointRight,
+        topReflectionLight
+      );
+      warmSpot.target = spotTarget;
+
+      const unit = {
+        index,
+        cfg,
+        rootGroup,
+        supportGroup,
+        woodSideMat,
+        ledDiffuserMat,
+        ledCoreMat,
+        goldButtonMat,
+        warmSpot,
+        warmPointLeft,
+        warmPointRight,
+        topReflectionLight,
+        spotTarget,
+        resinMesh: null,
+        figureRoot: null,
+        goldButtonMesh: null,
+        goldButtonRestPos: new THREE.Vector3(),
+        isLedOn: true, // Starts ON
+      };
+
+      unit.applyLedLighting = function () {
+        const active = unit.isLedOn && unit.rootGroup.visible;
+        const lvl = active ? LED_INTENSITY : 0;
+
+        unit.warmSpot.intensity = lvl * 9.5;
+        unit.warmPointLeft.intensity = lvl * 3.8;
+        unit.warmPointRight.intensity = lvl * 3.8;
+
+        const warmCol = new THREE.Color(0xff9a36);
+        unit.topReflectionLight.color.copy(warmCol);
+        unit.topReflectionLight.intensity = lvl * 2.2;
+
+        if (unit.isLedOn) {
+          unit.ledDiffuserMat.emissive.copy(warmCol);
+          unit.ledDiffuserMat.emissiveIntensity = 0.18 + LED_INTENSITY * 0.95;
+          unit.ledCoreMat.color.copy(warmCol).multiplyScalar(0.6 + LED_INTENSITY * 0.6);
+        } else {
+          unit.ledDiffuserMat.emissive.setHex(0x000000);
+          unit.ledDiffuserMat.emissiveIntensity = 0.0;
+          unit.ledCoreMat.color.setHex(0xd8dde6);
+        }
+      };
+
+      return unit;
+    });
+
+    // --- Build / Rebuild Resin Blocks & Cylindrical Support Structures ---
+    let baseFigureSize = new THREE.Vector3(1.8, 1.1, 0.65);
+    let modelLoaded = false;
+
+    function rebuildSceneGeometry() {
+      if (!modelLoaded) return;
+
+      const marginFactor = 1 + parseFloat(document.getElementById('ctrl-margin').value) / 100;
+      const bevelRadius = parseFloat(document.getElementById('ctrl-bevel').value);
+
+      const blockW = baseFigureSize.x * marginFactor;
+      const blockH = baseFigureSize.y * marginFactor;
+      const blockD = baseFigureSize.z * marginFactor;
+
+      const clampedBevel = Math.min(
+        bevelRadius,
+        blockW * 0.45,
+        blockH * 0.45,
+        blockD * 0.45
+      );
+
+      const blockCenterY = 0.24;
+      const blockBottomY = blockCenterY - blockH / 2;
+
+      const cylRadius = Math.max(blockW * 0.56, Math.hypot(blockW * 0.5, blockD * 0.5) * 1.03);
+      const diffuserHeight = 0.13;
+      const woodHeight = 0.56;
+      const diffuserCenterY = blockBottomY - diffuserHeight / 2;
+      const woodCenterY = diffuserCenterY - diffuserHeight / 2 - woodHeight / 2;
+
+      // Keep both awards comfortably spaced side by side (or center if only one is shown)
+      const awardSpacing = Math.max(1.32, cylRadius * 1.16);
+      if (visibleAwardSelection === '0') {
+        awardUnits[0].rootGroup.visible = true;
+        awardUnits[1].rootGroup.visible = false;
+        awardUnits[0].rootGroup.position.x = 0;
+      } else if (visibleAwardSelection === '1') {
+        awardUnits[0].rootGroup.visible = false;
+        awardUnits[1].rootGroup.visible = true;
+        awardUnits[1].rootGroup.position.x = 0;
+      } else {
+        awardUnits[0].rootGroup.visible = true;
+        awardUnits[1].rootGroup.visible = true;
+        awardUnits[0].rootGroup.position.x = -awardSpacing;
+        awardUnits[1].rootGroup.position.x = awardSpacing;
+      }
+
+      for (const unit of awardUnits) {
+        if (unit.resinMesh) {
+          unit.resinMesh.geometry.dispose();
+          unit.rootGroup.remove(unit.resinMesh);
+        }
+
+        if (unit.figureRoot) {
+          unit.figureRoot.position.y += blockCenterY - unit.figureRoot.userData.lastBlockCenterY;
+          unit.figureRoot.userData.lastBlockCenterY = blockCenterY;
+        }
+
+        const resinGeo = new RoundedBoxGeometry(blockW, blockH, blockD, 5, clampedBevel);
+        unit.resinMesh = new THREE.Mesh(resinGeo, resinMaterial);
+        unit.resinMesh.position.set(0, blockCenterY, 0);
+        unit.resinMesh.castShadow = false;
+        unit.resinMesh.receiveShadow = false;
+        unit.rootGroup.add(unit.resinMesh);
+
+        // Clear previous support meshes
+        while (unit.supportGroup.children.length > 0) {
+          const child = unit.supportGroup.children[0];
+          if (child.geometry) child.geometry.dispose();
+          unit.supportGroup.remove(child);
+        }
+
+        // 1. Top Frosted LED Diffuser Disc
+        const diffuserGeo = new THREE.CylinderGeometry(cylRadius, cylRadius, diffuserHeight, 72);
+        const diffuserMesh = new THREE.Mesh(diffuserGeo, unit.ledDiffuserMat);
+        diffuserMesh.position.set(0, diffuserCenterY, 0);
+        diffuserMesh.castShadow = true;
+        diffuserMesh.receiveShadow = true;
+        unit.supportGroup.add(diffuserMesh);
+
+        // Glowing internal LED strip beneath the resin block
+        const coreGeo = new THREE.BoxGeometry(blockW * 0.82, 0.02, blockD * 0.65);
+        const ledCoreMesh = new THREE.Mesh(coreGeo, unit.ledCoreMat);
+        ledCoreMesh.position.set(0, blockBottomY - 0.012, 0);
+        unit.supportGroup.add(ledCoreMesh);
+
+        // 2. Engraved Wooden Cylinder Base
+        const woodGeo = new THREE.CylinderGeometry(cylRadius, cylRadius, woodHeight, 72, 1, false);
+        const woodMesh = new THREE.Mesh(woodGeo, [unit.woodSideMat, woodCapMat, woodCapMat]);
+        woodMesh.position.set(0, woodCenterY, 0);
+        woodMesh.rotation.y = Math.PI;
+        woodMesh.castShadow = true;
+        woodMesh.receiveShadow = true;
+        unit.supportGroup.add(woodMesh);
+
+        // 3. Flat Round Golden Touch Button on the Front-Left of the Wooden Base
+        const btnAngle = -35 * (Math.PI / 180);
+        const btnRadius = 0.088;
+        const btnDepth = 0.024;
+        const btnGeo = new THREE.CylinderGeometry(btnRadius, btnRadius, btnDepth, 40);
+        btnGeo.rotateX(Math.PI / 2);
+
+        unit.goldButtonMesh = new THREE.Mesh(btnGeo, unit.goldButtonMat);
+        unit.goldButtonMesh.userData.awardUnit = unit;
+
+        const normalX = Math.sin(btnAngle);
+        const normalZ = Math.cos(btnAngle);
+        const surfaceDist = cylRadius - btnDepth * 0.12;
+        unit.goldButtonRestPos.set(
+          normalX * surfaceDist,
+          woodCenterY + 0.02,
+          normalZ * surfaceDist
+        );
+        unit.goldButtonMesh.position.copy(unit.goldButtonRestPos);
+        unit.goldButtonMesh.rotation.y = btnAngle;
+        unit.supportGroup.add(unit.goldButtonMesh);
+
+        // Position upward LED lights inside the diffuser cap
+        const lightY = blockBottomY - 0.03;
+        unit.warmSpot.position.set(0, lightY - 0.05, 0);
+        unit.warmPointLeft.position.set(-blockW * 0.28, lightY, 0);
+        unit.warmPointRight.position.set(blockW * 0.28, lightY, 0);
+        unit.topReflectionLight.position.set(0, blockCenterY + blockH * 0.45, 0);
+        unit.spotTarget.position.set(0, blockCenterY + 0.2, 0);
+
+        unit.applyLedLighting();
+      }
+
+      floorMesh.position.y = woodCenterY - woodHeight / 2 - 0.003;
+    }
+
+    // --- Interactive Touch / Click on Either Golden Button ---
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+
+    let activePressedUnit = null;
+
+    function updatePointerNDC(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function hitTestGoldButtons(event) {
+      const buttons = awardUnits
+        .filter((u) => u.rootGroup.visible)
+        .map((u) => u.goldButtonMesh)
+        .filter(Boolean);
+      if (buttons.length === 0) return null;
+      updatePointerNDC(event);
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(buttons, false);
+      return hits.length > 0 ? hits[0].object.userData.awardUnit : null;
+    }
+
+    function setButtonVisualPressed(unit, pressed) {
+      if (!unit || !unit.goldButtonMesh) return;
+      // Flat capacitive touch button stays flush in place and glows subtly when touched
+      unit.goldButtonMesh.position.copy(unit.goldButtonRestPos);
+      if (pressed) {
+        unit.goldButtonMat.emissive.setHex(0x664810);
+        unit.goldButtonMat.emissiveIntensity = 0.55;
+      } else {
+        unit.goldButtonMat.emissive.setHex(0x000000);
+        unit.goldButtonMat.emissiveIntensity = 0.0;
+      }
+    }
+
+    renderer.domElement.addEventListener('pointermove', (e) => {
+      if (activePressedUnit) return;
+      const hoveredUnit = hitTestGoldButtons(e);
+      renderer.domElement.style.cursor = hoveredUnit ? 'pointer' : 'grab';
+    });
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      const hitUnit = hitTestGoldButtons(e);
+      if (!hitUnit) return;
+
+      e.stopImmediatePropagation();
+      controls.enabled = false;
+
+      activePressedUnit = hitUnit;
+      setButtonVisualPressed(activePressedUnit, true);
+    }, true);
+
+    function endButtonPress() {
+      if (!activePressedUnit) return;
+
+      const unit = activePressedUnit;
+      unit.isLedOn = !unit.isLedOn;
+      unit.applyLedLighting();
+
+      setButtonVisualPressed(unit, false);
+      activePressedUnit = null;
+      controls.enabled = true;
+    }
+
+    window.addEventListener('pointerup', endButtonPress);
+    window.addEventListener('pointercancel', endButtonPress);
+
+    // --- Load the GLB Model Once and Instantiate Both Awards ---
+    const loaderEl = document.getElementById('loader');
+    const loaderTitle = document.getElementById('loader-title');
+    const progressBar = document.getElementById('progress-bar');
+    const progressStats = document.getElementById('progress-stats');
+
+    const gltfLoader = new GLTFLoader();
+
+    async function fetchPartWithProgress(url, partIndex, partLoadedBytes, onProgress) {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} fetching ${url}`);
+      }
+      if (!response.body) {
+        const buf = await response.arrayBuffer();
+        const arr = new Uint8Array(buf);
+        partLoadedBytes[partIndex] = arr.byteLength;
+        onProgress();
+        return arr;
+      }
+
+      const reader = response.body.getReader();
+      const chunks = [];
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.byteLength;
+        partLoadedBytes[partIndex] = received;
+        onProgress();
+      }
+
+      const partArray = new Uint8Array(received);
+      let offset = 0;
+      for (const chunk of chunks) {
+        partArray.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return partArray;
+    }
+
+    async function loadSplitGlbModel() {
+      const partLoadedBytes = MODEL_PARTS.map(() => 0);
+
+      function updateProgressUI() {
+        const loaded = partLoadedBytes.reduce((a, b) => a + b, 0);
+        const totalBytes = Math.max(EXPECTED_MODEL_BYTES, loaded);
+        const pct = Math.min(100, (loaded / totalBytes) * 100);
+        const loadedMB = (loaded / (1024 * 1024)).toFixed(1);
+        const totalMB = (totalBytes / (1024 * 1024)).toFixed(1);
+        progressBar.style.width = `${pct.toFixed(1)}%`;
+        progressStats.textContent = `${pct.toFixed(0)}% (${loadedMB} MB / ${totalMB} MB)`;
+      }
+
+      try {
+        const partArrays = await Promise.all(
+          MODEL_PARTS.map((url, idx) =>
+            fetchPartWithProgress(url, idx, partLoadedBytes, updateProgressUI)
+          )
+        );
+
+        const totalLength = partArrays.reduce((sum, arr) => sum + arr.byteLength, 0);
+        const combined = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const arr of partArrays) {
+          combined.set(arr, offset);
+          offset += arr.byteLength;
+        }
+
+        gltfLoader.parse(
+          combined.buffer,
+          './',
+          (gltf) => {
+            const templateRoot = gltf.scene;
+
+            templateRoot.traverse((child) => {
+              if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material) {
+                  child.material.transparent = false;
+                  child.material.depthWrite = true;
+                  child.material.needsUpdate = true;
+                }
+              }
+            });
+
+            // Orient the template rabbit to match the real-life award photo:
+            // Rotate -90 deg around Y so the rabbit's front side (+X in GLB) faces forwards (+Z)
+            // directly above the engraved text & gold button, with head/ears on the left (-X).
+            templateRoot.rotation.set(0, -Math.PI / 2, 0);
+            templateRoot.position.set(0, 0, 0);
+            templateRoot.scale.set(1, 1, 1);
+            templateRoot.updateMatrixWorld(true);
+
+            const box = new THREE.Box3().setFromObject(templateRoot);
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const scale = 1.75 / (maxDim || 1);
+            templateRoot.scale.setScalar(scale);
+
+            templateRoot.updateMatrixWorld(true);
+            const scaledBox = new THREE.Box3().setFromObject(templateRoot);
+            const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+            baseFigureSize = scaledBox.getSize(new THREE.Vector3());
+            templateRoot.position.sub(scaledCenter);
+
+            awardUnits.forEach((unit, idx) => {
+              const fig = idx === 0 ? templateRoot : templateRoot.clone(true);
+              fig.userData.lastBlockCenterY = 0;
+              unit.figureRoot = fig;
+              unit.rootGroup.add(fig);
+            });
+
+            modelLoaded = true;
+            rebuildSceneGeometry();
+
+            loaderEl.classList.add('hidden');
+          },
+          (error) => {
+            console.error('Error parsing GLB model:', error);
+            loaderTitle.textContent = 'Failed to Parse 3D Model';
+            progressStats.textContent = String(error);
+          }
+        );
+      } catch (error) {
+        console.error('Error loading GLB model parts:', error);
+        loaderTitle.textContent = 'Failed to Load 3D Model';
+        progressStats.textContent =
+          'Ensure this page is served over HTTP/HTTPS (e.g. GitHub Pages or local web server).';
+      }
+    }
+
+    loadSplitGlbModel();
+
+    // --- UI Controls Wiring ---
+    document.querySelectorAll('.award-vis-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.award-vis-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        visibleAwardSelection = btn.dataset.vis;
+        rebuildSceneGeometry();
+      });
+    });
+
+    const presets = {
+      clear: { color: '#f2f8ff', dist: 3.2, ior: 1.52, roughness: 0.03 },
+      cyan: { color: '#4deeea', dist: 1.2, ior: 1.55, roughness: 0.04 },
+      amber: { color: '#ff9e2c', dist: 1.1, ior: 1.54, roughness: 0.05 },
+      emerald: { color: '#38ef7d', dist: 1.3, ior: 1.53, roughness: 0.04 },
+    };
+
+    document.querySelectorAll('.preset-row .preset-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.preset-row .preset-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        const p = presets[btn.dataset.preset];
+        if (!p) return;
+
+        resinMaterial.attenuationColor.set(p.color);
+        resinMaterial.attenuationDistance = p.dist;
+        resinMaterial.ior = p.ior;
+        resinMaterial.roughness = p.roughness;
+
+        document.getElementById('ctrl-attenuation-color').value = p.color;
+        document.getElementById('ctrl-attenuation-dist').value = p.dist;
+        document.getElementById('val-attenuation-dist').textContent = p.dist.toFixed(2);
+        document.getElementById('ctrl-ior').value = p.ior;
+        document.getElementById('val-ior').textContent = p.ior.toFixed(2);
+        document.getElementById('ctrl-roughness').value = p.roughness;
+        document.getElementById('val-roughness').textContent = p.roughness.toFixed(2);
+      });
+    });
+
+    function bindSlider(id, valId, formatter, onChange) {
+      const el = document.getElementById(id);
+      const valEl = document.getElementById(valId);
+      el.addEventListener('input', () => {
+        const v = parseFloat(el.value);
+        if (valEl) valEl.textContent = formatter(v);
+        onChange(v);
+      });
+    }
+
+    bindSlider('ctrl-transmission', 'val-transmission', (v) => v.toFixed(2), (v) => {
+      resinMaterial.transmission = v;
+    });
+    bindSlider('ctrl-ior', 'val-ior', (v) => v.toFixed(2), (v) => {
+      resinMaterial.ior = v;
+    });
+    bindSlider('ctrl-thickness', 'val-thickness', (v) => v.toFixed(2), (v) => {
+      resinMaterial.thickness = v;
+    });
+    bindSlider('ctrl-roughness', 'val-roughness', (v) => v.toFixed(2), (v) => {
+      resinMaterial.roughness = v;
+    });
+    bindSlider('ctrl-clearcoat', 'val-clearcoat', (v) => v.toFixed(2), (v) => {
+      resinMaterial.clearcoat = v;
+    });
+    bindSlider('ctrl-attenuation-dist', 'val-attenuation-dist', (v) => v.toFixed(2), (v) => {
+      resinMaterial.attenuationDistance = v;
+    });
+    bindSlider('ctrl-margin', 'val-margin', (v) => `${v.toFixed(0)}%`, () => {
+      rebuildSceneGeometry();
+    });
+    bindSlider('ctrl-bevel', 'val-bevel', (v) => v.toFixed(2), () => {
+      rebuildSceneGeometry();
+    });
+
+    document.getElementById('ctrl-attenuation-color').addEventListener('input', (e) => {
+      resinMaterial.attenuationColor.set(e.target.value);
+    });
+
+    document.getElementById('ctrl-autorotate').addEventListener('change', (e) => {
+      controls.autoRotate = e.target.checked;
+    });
+
+    const collapseBtn = document.getElementById('collapse-btn');
+    const controlsPanel = document.getElementById('controls-panel');
+    collapseBtn.addEventListener('click', () => {
+      controlsPanel.classList.toggle('collapsed');
+    });
+
+    // --- Mobile Navigation Instructions & Fullscreen Support ---
+    const footerHintEl = document.getElementById('footer-hint');
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    const isTouchOrMobile = () =>
+      window.matchMedia('(pointer: coarse)').matches ||
+      'ontouchstart' in window ||
+      window.innerWidth <= 900;
+
+    function updateNavigationInstructions() {
+      if (isTouchOrMobile()) {
+        footerHintEl.innerHTML =
+          '1-finger drag to orbit &bull; 2-finger drag to pan &bull; Pinch to zoom';
+      } else {
+        footerHintEl.innerHTML =
+          'Drag to orbit &bull; Command-drag to pan &bull; Scroll to zoom';
+      }
+    }
+    updateNavigationInstructions();
+
+    const rootEl = document.documentElement;
+    const supportsNativeFullscreen = Boolean(
+      (document.fullscreenEnabled || document.webkitFullscreenEnabled) &&
+      (typeof rootEl.requestFullscreen === 'function' ||
+        typeof rootEl.webkitRequestFullscreen === 'function')
+    );
+
+    if (supportsNativeFullscreen) {
+      fullscreenBtn.classList.add('supported');
+    }
+
+    const ENTER_FULLSCREEN_SVG = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+      </svg>`;
+
+    const EXIT_FULLSCREEN_SVG = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+      </svg>`;
+
+    function isNativeFullscreen() {
+      return Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+    }
+
+    function syncFullscreenButtonLabel() {
+      fullscreenBtn.innerHTML = isNativeFullscreen()
+        ? EXIT_FULLSCREEN_SVG
+        : ENTER_FULLSCREEN_SVG;
+    }
+
+    fullscreenBtn.addEventListener('click', async () => {
+      if (!supportsNativeFullscreen) return;
+      try {
+        if (!isNativeFullscreen()) {
+          if (rootEl.requestFullscreen) {
+            await rootEl.requestFullscreen();
+          } else if (rootEl.webkitRequestFullscreen) {
+            rootEl.webkitRequestFullscreen();
+          }
+        } else {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+          }
+        }
+      } catch (err) {
+        console.warn('Fullscreen request failed:', err);
+      }
+      syncFullscreenButtonLabel();
+    });
+
+    document.addEventListener('fullscreenchange', syncFullscreenButtonLabel);
+    document.addEventListener('webkitfullscreenchange', syncFullscreenButtonLabel);
+
+    // --- Responsive Resize ---
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      updateNavigationInstructions();
+    });
+
+    // --- Animation Loop ---
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+
+</html>
